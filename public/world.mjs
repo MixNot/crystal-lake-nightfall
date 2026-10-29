@@ -12,7 +12,7 @@ export function windowInside(w){return{x:w.id===0?122:590,y:65};}
 export function houseWindows(id){if([1,7].includes(id))return[];return(id===2?[0]:[0,1]).map(n=>({id:n,offset:n===0?40:204,state:id===2?'barred':(id+n)%3===0?'closed':'open'}));}
 export const hideable=f=>f.slot!==undefined&&['wardrobe','bed'].includes(f.kind);
 export function fuseBox(h){return{x:h.x+275,y:h.y+140,scene:-1};}
-const cabins=[['Дом лесника','cabin',140,100],['Гараж у просеки','workshop',320,775],['Радиостанция на холме','radio',1690,75],['Столовая лагеря','diner',1030,555],['Охотничий домик','cabin',1740,790],['Медпункт','clinic',1040,85],['Старый пансион','cabin',1230,1100],['Склад у кладбища','store',100,1120],['Эллинг','boathouse',1730,1190]];
+const cabins=[['Дом лесника','cabin',100,175],['Гараж у просеки','workshop',450,1160],['Радиостанция на холме','radio',1740,50],['Столовая лагеря','diner',1060,580],['Охотничий домик','cabin',1800,965],['Медпункт','clinic',1250,175],['Старый пансион','cabin',960,1060],['Склад у кладбища','store',145,1050],['Эллинг','boathouse',1900,1225]];
 const rect=(x,y,w,h,kind,name,slot)=>({x,y,w,h,kind,name,...(slot===undefined?{}:{slot})});
 const cabinet=(x=450,y=57,slot=1)=>rect(x,y,110,43,'wardrobe','Шкаф',slot);
 export const PARTITIONS=[rect(373,40,17,250,'wall'),rect(373,394,17,60,'wall')];
@@ -33,7 +33,7 @@ export function createWorld(seed){
  if(maps.has(seed))return maps.get(seed);const random=rng(seed),houses=cabins.map(([name,kind,x,y],id)=>({id,name,tag:String(id+1).padStart(2,'0'),kind,x,y,w:240,h:155,windows:houseWindows(id)})),layouts=interiors();
  const partitions=[PARTITIONS,[],[rect(397,40,16,155,'wall')],[rect(385,40,15,135,'wall')],PARTITIONS,[rect(370,40,17,240,'wall')],[rect(445,210,16,250,'wall')],[],[rect(405,330,16,125,'wall')]];
  const paths=[[[25,450],[480,450],[766,450],[1010,420],[1350,355],[1775,300],[2100,415]],[[20,940],[490,940],[766,940],[1130,875],[1530,925],[2050,1020]],[[80,1430],[766,1430],[1120,1370],[1550,1420],[2040,1430]],[[505,450],[565,580],[555,790],[490,940]],[[1010,420],[995,650],[1130,875],[1120,1370]],[[1775,300],[1630,555],[1530,925],[1550,1420]]].map((points,id)=>({id,width:id<3?64:34,points:points.map(([x,y])=>({x,y}))}));
- for(const h of houses){const p=door(h);let nearest=null,score=Infinity;for(const path of paths.slice(0,3))for(let i=1;i<path.points.length;i++){const a=path.points[i-1],b=path.points[i],dx=b.x-a.x,dy=b.y-a.y,t=clamp(((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy),0,1),q={x:a.x+dx*t,y:a.y+dy*t};if(dist(p,q)<score){score=dist(p,q);nearest=q;}}paths.push({id:'drive'+h.id,width:27,points:[p,{x:p.x,y:p.y+35},nearest]});}
+ for(const h of houses){const p=door(h);let nearest=null,score=Infinity;for(const path of paths.slice(0,3))for(let i=1;i<path.points.length;i++){const a=path.points[i-1],b=path.points[i],dx=b.x-a.x,dy=b.y-a.y,t=clamp(((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy),0,1),q={x:a.x+dx*t,y:a.y+dy*t};if(dist(p,q)<score){score=dist(p,q);nearest=q;}}paths.push({id:'drive'+h.id,width:27,points:dist(p,nearest)<70?[p,nearest]:[p,{x:p.x,y:p.y+35},nearest]});}
  const solids=houses.map(h=>({x:h.x-2,y:h.y-12,w:244,h:172,kind:'house'}));for(const h of houses){const p=fuseBox(h);solids.push({x:p.x-9,y:p.y-15,w:18,h:25,kind:'utility'});}
  solids.push({x:2130,y:320,w:70,h:690,kind:'water'},{x:461,y:865,w:58,h:58,kind:'car'});
  for(const[y,h]of [[20,390],[490,410],[980,410]])solids.push({x:750,y,w:32,h,kind:'water'});
