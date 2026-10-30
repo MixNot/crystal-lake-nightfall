@@ -1,5 +1,5 @@
 import{skinOptions,skinFor,defaultSkin}from'/appearance.mjs';
-import{WORLD,ROOM,ROLE_NAMES,ITEM_NAMES,createWorld,clamp,dist,within,nearPoint,door,windowPoint,windowInside,hideable,fuseBox,move,motionStep,obstacles,lightObstacles,route}from'/world.mjs';
+import{WORLD,ROOM,ROLE_NAMES,ITEM_NAMES,createWorld,clamp,dist,within,nearPoint,door,windowPoint,windowInside,hideable,fuseBox,move,motionStep,obstacles,lightObstacles,route,clearLine}from'/world.mjs';
 import{smoothAngle,aimAngle,smoothPose,skillGeometry,TASK_WORDS,actionProgress,controlLockRemaining,groundShadowShape}from'/presentation.mjs';
 const nearestPoint=nearPoint;
 const root=document.getElementById('nightfall'),$=s=>root.querySelector(s),canvas=$('canvas'),ctx=canvas.getContext('2d');
@@ -75,10 +75,27 @@ function openAppearance(){const own=room?.players.find(p=>p.id===memberId);if(!o
 function renderAppearance(){const s=skinFor(appearanceRole,draftSkin);$('[data-skin-preview]').src=portrait(appearanceRole,s.id);put('[data-preview-name]',s.name);put('[data-preview-tag]',s.tag);put('[data-preview-description]',s.description);for(const b of root.querySelectorAll('[data-skin-pick]')){const selected=b.dataset.skinPick===s.id;b.classList.toggle('selected',selected);b.setAttribute('aria-pressed',String(selected));}root.dataset.previewSkin=s.id;}
 function closeAppearance(){$('[data-appearance-sheet]').hidden=true;$('[data-open-appearance]').focus({preventScroll:true});}
 async function applyAppearance(){$('[data-apply-appearance]').disabled=true;const data=await operation('skin',{skin:draftSkin});$('[data-apply-appearance]').disabled=false;if(data)closeAppearance();else put('[data-appearance-error]','Не удалось сохранить облик. Попробуй ещё раз.');}
-function currentContext(){if(!canControl())return null;if(player.hidden)return view.context;const candidates=(view.interactions||[]).filter(c=>dist(player,c)<61).sort((a,b)=>dist(player,a)-dist(player,b));return candidates[0]||((view.context&&dist(player,view.context)<68)?view.context:null);}
-function sendAction(type,extra={}){if(!canControl()||leaving)return;if(type==='interact'&&(pendingInteraction||view.me.task))return;const clientId=++actionSeq;
- if(type==='interact'){const c=currentContext();localPath=[];auto=null;keys.clear();runToggle=false;pendingInteraction={id:clientId,type:view.me.repair?'repair':c?.type||'interact',at:performance.now(),scene,waiting:true};drawFeedback();}
- nextActions.push({type,clientId,...extra});if(nextActions.length>8)nextActions=nextActions.slice(-8);pump(true);}
+function currentContext(){
+ if(!canControl()||player.stun>0)return null;
+ if(player.hidden)return{type:'unhide',label:'Выйти из укрытия · E',x:player.x,y:player.y};
+ if(view.me.boarded!=null)return{type:'unboard',id:view.me.boarded,label:'Выйти из транспорта · E',x:player.x,y:player.y};
+ if(view.me.repair)return{type:'stopRepair',id:view.me.repair.project,label:'Прекратить ремонт · E',x:player.x,y:player.y};
+ const candidates=[];for(const c of [...(view.interactions||[]),view.context]){
+  if(!c)continue;let point=c;
+  if(c.type==='hide'||c.type==='search'){const f=furniture.find(f=>f.slot===c.id);if(!f)continue;point=nearPoint(player,f);}
+  if(dist(player,point)>=57||!clearLine(map,player,{...point,scene},scene))continue;
+  candidates.push({...c,x:point.x,y:point.y});
+ }
+ return candidates.sort((a,b)=>dist(player,a)-dist(player,b))[0]||null;
+}
+const TIMED_INTERACTIONS=new Set(['hide','search','loot','openWindow','vaultIn','vaultOut','heal','disarm','powerOn','powerOff','breach','install','board','sabotage']);
+function sendAction(type,extra={}){
+ if(!canControl()||leaving)return;const context=type==='interact'?currentContext():null;
+ if(type==='interact'&&(!context||pendingInteraction||view.me.task))return;
+ const clientId=++actionSeq;
+ if(type==='interact'){localPath=[];auto=null;keys.clear();runToggle=false;pendingInteraction={id:clientId,type:context.type,timed:TIMED_INTERACTIONS.has(context.type),at:performance.now(),scene,waiting:true};drawFeedback();extra={...extra,target:{type:context.type,id:context.id,window:context.window,scene,epoch:view.me.moveEpoch||0}};}
+ nextActions.push({type,clientId,...extra});if(nextActions.length>8)nextActions=nextActions.slice(-8);pump(true);
+}
 
 function check(){const c=view?.me.repair?.check;if(!c||checkSent===c.id)return;checkSent=c.id;sendAction('check',{id:c.id,time:gameTime()});}
 function gameTime(){if(!view)return 0;const time=view.time+Math.min(1.5,(performance.now()-lastViewAt+latency*.45)/1000);clockTime=Math.max(clockTime,time);return clockTime;}
@@ -319,7 +336,7 @@ function drawFurniture(f){
   panel(ctx,x+5,y+6,w-10,z-12,'#b08d5c','#6b553b',6);woodLines(ctx,x+6,y+7,w-12,z-14);
   ellipse(ctx,x+w*.31,y+z*.48,10,8,'#e5e1c9');ellipse(ctx,x+w*.31,y+z*.48,6,5,'#b9bcaa');rounded(ctx,x+w*.57,y+z*.33,15,19,1,'#c7c9b3');line(ctx,x+w*.59,y+z*.4,x+w*.72,y+z*.4,'#6a7e75',1);ellipse(ctx,x+w*.77,y+z*.7,5,4,'#e4dabb');ellipse(ctx,x+w*.77,y+z*.7,3,2,'#66523e');
  }
- if(f.slot!==undefined&&!checked){const nearby=dist(player,nearestPoint(player,f))<70;ctx.save();ctx.globalAlpha=nearby?.7:.12;ctx.strokeStyle=palette.window;ctx.lineWidth=nearby?2:1;ctx.strokeRect(x-4,y-4,w+8,z+8);ctx.restore();}
+ if(f.slot!==undefined&&(view.interactions||[]).some(c=>c.id===f.slot&&(c.type==='hide'||c.type==='search'))){const nearby=dist(player,nearestPoint(player,f))<70;ctx.save();ctx.globalAlpha=nearby?.7:.12;ctx.strokeStyle=palette.window;ctx.lineWidth=nearby?2:1;ctx.strokeRect(x-4,y-4,w+8,z+8);ctx.restore();}
 }
 function characterArt(c,p,isJason=false,preview=false){
  const s=skinFor(p.role|| (isJason?'jason':'mechanic'),p.skin),x=p.x,y=p.y,moving=p.moving,stride=moving?Math.sin(p.walk||0)*4:0,bob=moving?Math.abs(Math.cos(p.walk||0))*.8:0,scale=isJason?s.scale:.96;
@@ -434,11 +451,10 @@ function drawInteractionMarks(){if(mapOpen||player.hidden||view.me.task||pending
 }
 function drawFeedback(){if(!view)return;if(!canControl()){$('[data-interaction-hint]').hidden=true;$('[data-action-progress]').hidden=true;return;}const hint=$('[data-interaction-hint]'),bar=$('[data-action-progress]'),task=view.me.task,context=currentContext(),busy=!!task||!!pendingInteraction;
  hint.hidden=mapOpen||busy||!!view.me.repair||!context||player.dead||player.escaped;if(!hint.hidden){const p=screenPoint(context),x=clamp(p.x,Math.min(135,W/2),W-Math.min(135,W/2));hint.style.left=x+'px';hint.style.top=clamp(p.y-35,88,H-100)+'px';put('[data-interaction-label]',context.label.replace(' · E',''));}
- bar.hidden=mapOpen||!busy||player.dead||player.escaped;if(bar.hidden)return;const p=screenPoint({x:visualPose.x,y:visualPose.y}),wait=!task;bar.classList.toggle('pending',wait);bar.style.left=clamp(p.x,90,W-90)+'px';bar.style.top=clamp(p.y-78,100,H-105)+'px';
+ bar.hidden=mapOpen||(!task&&!pendingInteraction?.timed)||player.dead||player.escaped;if(bar.hidden)return;const p=screenPoint({x:visualPose.x,y:visualPose.y}),wait=!task;bar.classList.toggle('pending',wait);bar.style.left=clamp(p.x,90,W-90)+'px';bar.style.top=clamp(p.y-78,100,H-105)+'px';
  if(task){const progress=actionProgress(task,view.time,gameTime());put('[data-progress-label]',progress.label+'…');$('[data-progress-fill]').style.width=(progress.fraction*100)+'%';put('[data-progress-time]',progress.remaining>.05?progress.remaining.toFixed(1)+'с':'…');}
  else{put('[data-progress-label]',(TASK_WORDS[pendingInteraction.type]||'Начинаем')+'…');put('[data-progress-time]','···');}
 }
-function drawObjectLabel(){if(scene<0||!canControl()||currentContext())return;const point=aimPoint?{x:(aimPoint.x-W/2)/zoom+camera.x,y:(aimPoint.y-H/2)/zoom+camera.y}:null;let f=point?furniture.find(f=>within(point,f)&&dist(player,nearestPoint(player,f))<240):null;if(!f)f=furniture.filter(f=>dist(player,nearestPoint(player,f))<66).sort((a,b)=>dist(player,nearestPoint(player,a))-dist(player,nearestPoint(player,b)))[0];if(!f)return;const p=screenPoint({x:f.x+f.w/2,y:f.y-33}),text=f.name+(hideable(f)?' · укрытие':''),width=Math.min(W-24,ctx.measureText(text).width+22),xx=clamp(p.x-width/2,12,W-width-12),yy=clamp(p.y,52,H-40);ctx.save();ctx.font=fonts.normal;rounded(ctx,xx,yy,width,25,5,'#132626');ctx.fillStyle=palette.paper;ctx.textAlign='center';ctx.fillText(text,xx+width/2,yy+17);ctx.restore();}
 function draw(){if(!view||!terrain)return;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);ctx.fillStyle=palette.night;ctx.fillRect(0,0,W,H);ctx.save();ctx.translate(W/2-camera.x*zoom,H/2-camera.y*zoom);ctx.scale(zoom,zoom);ctx.drawImage(scene<0?terrain:roomFloor,0,0);drawGroundShadows();const inView=p=>Math.abs(p.x-camera.x)<W/(2*zoom)+180&&Math.abs(p.y-camera.y)<H/(2*zoom)+200;const layers=[];
  if(scene<0){for(const h of houses)if(inView({x:h.x+120,y:h.y+90})){layers.push({y:h.y+155,fn:()=>{drawHouse(h);ctx.font=fonts.normal;ctx.fillStyle=palette.dim;ctx.textAlign='center';ctx.fillText(h.name,h.x+120,h.y+210);if(h.barricade){line(ctx,h.x+97,h.y+107,h.x+144,h.y+148,'wood',7);line(ctx,h.x+97,h.y+145,h.x+144,h.y+107,'wood',7);}}});const p=fuseBox(h);layers.push({y:p.y,fn:()=>drawFuse(h)});}for(const t of trees)if(inView(t))layers.push({y:t.y,fn:()=>drawTree(t)});for(const l of lamps)if(inView(l))layers.push({y:l.y,fn:()=>drawLamp(l)});for(const p of view.projects)if(inView(p))layers.push({y:p.y-10,fn:()=>drawProject(p)});for(const d of map.decor)if(inView(d))layers.push({y:d.y,fn:()=>drawDecor(d)});
  }else{for(const f of furniture)layers.push({y:f.y+f.h,fn:()=>drawFurniture(f)});for(const p of map.partitions[scene])layers.push({y:p.y+p.h,fn:()=>rounded(ctx,p.x,p.y,p.w,p.h,2,'roofLight')});}
@@ -449,7 +465,7 @@ function draw(){if(!view||!terrain)return;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.
  
  if(localPath.length){const p=localPath[localPath.length-1];ctx.save();ctx.globalAlpha=.4;ctx.strokeStyle=palette.paper;ctx.beginPath();ctx.ellipse(p.x,p.y,9,4,0,0,Math.PI*2);ctx.stroke();ctx.restore();}
  if(scene<0&&!motionOff){for(const p of puddles)if(inView(p)){const r=2+(elapsed*11+p.x)%23;ctx.save();ctx.globalAlpha=(1-r/25)*.13;ctx.strokeStyle=palette.steel;ctx.lineWidth=.7;ctx.beginPath();ctx.ellipse(p.x,p.y,r,r*.23,0,0,Math.PI*2);ctx.stroke();ctx.restore();}}ctx.restore();drawFog();
- if(scene<0&&!motionOff){ctx.save();ctx.globalAlpha=.10;ctx.strokeStyle=palette.steel;ctx.lineWidth=.8;for(let i=0;i<W/15;i++){const x=(i*79.3+elapsed*43)%(W+40)-20,y=(i*107.1+elapsed*320)%(H+40)-20;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-4,y+12);ctx.stroke();}ctx.restore();}miniMap(mapOpen);if(!mapOpen)drawObjectLabel();drawInteractionMarks();drawSkill();drawFeedback();root.dataset.state=state;root.dataset.role=player.role;root.dataset.scene=String(scene);
+ if(scene<0&&!motionOff){ctx.save();ctx.globalAlpha=.10;ctx.strokeStyle=palette.steel;ctx.lineWidth=.8;for(let i=0;i<W/15;i++){const x=(i*79.3+elapsed*43)%(W+40)-20,y=(i*107.1+elapsed*320)%(H+40)-20;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-4,y+12);ctx.stroke();}ctx.restore();}miniMap(mapOpen);drawInteractionMarks();drawSkill();drawFeedback();root.dataset.state=state;root.dataset.role=player.role;root.dataset.scene=String(scene);
 }
 function resize(){if(!view||$('[data-game]').hidden)return;const box=$('.stage').getBoundingClientRect(),newW=Math.max(1,box.width),newH=canvas.getBoundingClientRect().height;dpr=Math.min(devicePixelRatio||1,2);if(W!==newW||H!==newH||canvas.width!==Math.round(newW*dpr)){W=newW;H=newH;canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);}zoom=W<500?.90:1.05;fitCamera();draw();}
 function fitCamera(){const size=scene<0?WORLD:ROOM,hw=W/(2*zoom),hh=H/(2*zoom);camera.x=size.w<hw*2?size.w/2:clamp(camera.x,hw,size.w-hw);camera.y=size.h<hh*2?size.h/2:clamp(camera.y,hh,size.h-hh);}
