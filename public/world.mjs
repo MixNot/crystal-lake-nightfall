@@ -33,6 +33,7 @@ const maps=new Map();
 export function createWorld(seed){
  if(maps.has(seed))return maps.get(seed);const random=rng(seed),houses=cabins.map(([name,kind,x,y],id)=>({id,name,tag:String(id+1).padStart(2,'0'),kind,x,y,w:240,h:155,windows:houseWindows(id)})),layouts=interiors();
  const partitions=[PARTITIONS,[],[rect(397,40,16,155,'wall')],[rect(385,40,15,135,'wall')],PARTITIONS,[rect(370,40,17,240,'wall')],[rect(445,210,16,250,'wall')],[],[rect(405,330,16,125,'wall')]];
+ const variant=(seed>>>24)%3;if(variant){for(const h of houses)for(const w of h.windows)if(w.state!=='barred')w.state=(h.id+w.id+variant)%3===0?'closed':'open';for(const [id,list]of layouts.entries())for(const f of list)if(f.y>150&&((id+variant)%3!==0)){const next=ROOM.w-f.x-f.w;const collides=partitions[id].some(o=>next<o.x+o.w&&next+f.w>o.x&&f.y<o.y+o.h&&f.y+f.h>o.y);if(!collides)f.x=next;}for(const h of houses)if([3,5,6].includes(h.id)){h.x+=(variant===1?1:-1)*(h.id===5?35:45);h.y+=(h.id===3?25:-20);}}
  const paths=[[[25,450],[480,450],[766,450],[1010,420],[1350,355],[1775,300],[2100,415]],[[20,940],[490,940],[766,940],[1130,875],[1530,925],[2050,1020]],[[80,1430],[766,1430],[1120,1370],[1550,1420],[2040,1430]],[[505,450],[565,580],[555,790],[490,940]],[[1010,420],[995,650],[1130,875],[1120,1370]],[[1775,300],[1630,555],[1530,925],[1550,1420]]].map((points,id)=>({id,width:id<3?64:34,points:points.map(([x,y])=>({x,y}))}));
  for(const h of houses){const p=door(h);let nearest=null,score=Infinity;for(const path of paths.slice(0,3))for(let i=1;i<path.points.length;i++){const a=path.points[i-1],b=path.points[i],dx=b.x-a.x,dy=b.y-a.y,t=clamp(((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy),0,1),q={x:a.x+dx*t,y:a.y+dy*t};if(dist(p,q)<score){score=dist(p,q);nearest=q;}}paths.push({id:'drive'+h.id,width:27,points:dist(p,nearest)<70?[p,nearest]:[p,{x:p.x,y:p.y+35},nearest]});}
  const solids=houses.map(h=>({x:h.x-2,y:h.y-12,w:244,h:172,kind:'house'}));for(const h of houses){const p=fuseBox(h);solids.push({x:p.x-9,y:p.y-15,w:18,h:25,kind:'utility'});}
@@ -63,13 +64,19 @@ export function move(map,a,vx,vy,dt){if(!blocked(map,a.x+vx*dt,a.y,10,a.scene))a
 export function motionStep(map,a,c){
  const dt=clamp(Number(c.dt)||0,0,.05),dx=clamp(Number(c.dx)||0,-1,1),dy=clamp(Number(c.dy)||0,-1,1),length=Math.hypot(dx,dy),killer=a.role==='jason';
  const lx=Number(c.lx),ly=Number(c.ly),look=Math.hypot(lx,ly);if(Number.isFinite(look)&&look>.1){a.lx=lx/look;a.ly=ly/look;}
- a.moving=false;if(a.dead||a.escaped||a.hidden||a.stun>0||a.boarded!=null)return;
+ a.moving=false;if(a.dead||a.escaped||a.hidden||a.downed||a.stun>0)return;
+ if(a.driving&&a.boarded!=null){
+  const speed=a.driving==='boat'?155:210,size=WORLD,boat=a.driving==='boat',r=boat?12:22;
+  const obstructed=(x,y)=>x<(boat?2000:34)||x>size.w-25||y<(boat?350:40)||y>size.h-35||(boat&&y<980&&x<2135)||(!boat&&map.solids.some(o=>o.kind!=='car'&&x+r>o.x&&x-r<o.x+o.w&&y+r>o.y&&y-r<o.y+o.h));
+  if(length){const vx=dx/length*speed,vy=dy/length*speed;if(!obstructed(a.x+vx*dt,a.y))a.x+=vx*dt;if(!obstructed(a.x,a.y+vy*dt))a.y+=vy*dt;a.fx=dx/length;a.fy=dy/length;a.moving=true;}return;
+ }
+ if(a.boarded!=null)return;
  if(length>0){a.task=null;a.repair=null;if(!c.keepNav){a.nav=[];a.goal=null;}}
  const run=length>0&&c.run&&!a.crouch&&!a.exhausted&&a.stamina>.02;
  a.recoverDelay=Math.max(0,(a.recoverDelay||0)-dt);
- if(run){a.stamina=Math.max(0,a.stamina-dt*(killer?.45:.23));a.recoverDelay=killer?1.5:.65;if(a.stamina<.025)a.exhausted=true;}
+ if(run){a.stamina=Math.max(0,a.stamina-dt*(killer?.45:a.role==='scout'?.21:.23));a.recoverDelay=killer?1.5:.65;if(a.stamina<.025)a.exhausted=true;}
  else if(a.recoverDelay<=0){a.stamina=Math.min(1,a.stamina+dt*(killer?.10:.16));if(a.stamina>.3)a.exhausted=false;}
- if(length>0&&!a.task&&!a.repair){a.fx=dx/length;a.fy=dy/length;let speed=a.crouch?72:run?(killer?148:160):(killer?107:108);if(!killer&&a.hp===1)speed*=.87;if(a.swing>0||a.block>0)speed*=.65;if(a.fury>0)speed*=1.17;move(map,a,a.fx*speed,a.fy*speed,dt);a.moving=true;a.walk+=dt*(run?14:9);}
+ if(length>0&&!a.task&&!a.repair){a.fx=dx/length;a.fy=dy/length;let speed=a.crouch?72:run?(killer?148:a.role==='scout'?170:160):(killer?107:a.role==='scout'?115:108);if(!killer&&a.hp===1)speed*=.87;if(!killer&&['battery','fuel'].includes(a.bag?.kind))speed*=.90;if(a.swing>0||a.block>0)speed*=.65;if(a.fury>0)speed*=1.17;move(map,a,a.fx*speed,a.fy*speed,dt);a.moving=true;a.walk+=dt*(run?14:9);}
 }
 export function clearLine(map,a,b,scene=a.scene){if(a.scene!==undefined&&b.scene!==undefined&&a.scene!==b.scene)return false;const dx=b.x-a.x,dy=b.y-a.y;if(Math.abs(dx)+Math.abs(dy)<.01)return true;for(const o of nearbySolids(map,scene,Math.min(a.x,b.x),Math.min(a.y,b.y),Math.abs(dx),Math.abs(dy))){if(o.kind==='water')continue;const tx1=(o.x-a.x)/(dx||1e-10),tx2=(o.x+o.w-a.x)/(dx||1e-10),ty1=(o.y-a.y)/(dy||1e-10),ty2=(o.y+o.h-a.y)/(dy||1e-10),lo=Math.max(Math.min(tx1,tx2),Math.min(ty1,ty2)),hi=Math.min(Math.max(tx1,tx2),Math.max(ty1,ty2));if(hi>=lo&&hi>.001&&lo<.999)return false;}return true;}
 export function route(map,goal,a,scene=a.scene){

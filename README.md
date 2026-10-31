@@ -1,11 +1,25 @@
-# Crystal Lake: Nightfall
+# Crystal Lake: Nightfall — Nightwatch
 
-Node.js 24+, npm install, npm start. PORT is supplied by the hosting provider.
+Online 2D survival game. Node.js 24+, `npm ci --omit=dev`, `npm start`.
+The hosting provider supplies `PORT`; WebSocket `/ws`, HTTP fallback `/api/rooms/:code`, health `/health`.
 
-Render: Web Service, Frankfurt, Free plan, build `npm ci --omit=dev`, start `npm start`, health `/health`. WebSocket endpoint is `/ws`; HTTP remains available as fallback.
+## Play
 
-Rooms and matches are held in server memory. A server restart clears rooms. Render Free sleeps after 15 minutes without incoming traffic; its next startup may take about one minute. No paid database, disk or plan is needed.
+- Classic: one hunter and up to four survivors; bots fill the selected number of free survivor places. Hunt allows additional survivor bots, up to twelve.
+- The lobby host chooses bot count, mode and AI difficulty. Appearances remain cosmetic.
+- Esc opens saved audio/display settings, key remapping and the guide. Icons show abilities, ammunition and cooldowns; contextual prompts appear only near available interactions.
+- Jason uses the machete, traps, sense (60-second cooldown), stealth and rage. Throwing knives, dash and protection were removed.
+- Survivor supplies are limited and randomly scattered. Notes provide temporary approximate clues; supply kits may be locked and noisy. Destroyed parts respawn randomly in another location.
+- Car: four seats; boat: two. Launch after the engine startup and steer with movement keys. Car exit is west; boat exit is north across the lake. The map marks the active transport exit.
+- Radio calls rescue to the west entrance. At dawn a final 75-second exit opens. Reaching it is required; waiting in a shelter is not an automatic escape.
+- A first lethal injury can leave a survivor downed for 32 seconds. An ally may revive them once. Death and escape allow spectator mode.
+- Rain washes away trails. Decoys make false sounds. Power outages, storms and random supplies vary a round. A generator can restore nearby power temporarily.
+- Safe practice teaches movement, pickup, hiding, windows, a timing check and a driven escape, with no attacking hunter or time limit.
 
-Lobby: the host chooses 0–12 survivor bots. With bots disabled, both Jason and at least one survivor must be human. Five Jason costumes and six survivor outfits are available before readiness; appearances are cosmetic and synchronized by the server.
+## Runtime limits
 
-Audio authors and CC0 source links: public/audio/CREDITS.md.
+The existing free Render instance sleeps after inactivity. Its next startup can take about a minute.
+By default rooms use in-memory SQLite. A restart/deploy closes those matches; clients return to the lobby with an explanation.
+`NIGHTFALL_DB_PATH` may point to a persistent SQLite file on a host that provides persistent storage. The free Render configuration does not include a paid disk/database. Do not claim that ongoing matches survive a Render restart.
+
+Session tokens and room data belong only in the runtime database, never in source control. Audio attribution and CC0 sources: `public/audio/CREDITS.md`.
