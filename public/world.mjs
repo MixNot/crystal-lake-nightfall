@@ -34,6 +34,15 @@ export function createWorld(seed){
  if(maps.has(seed))return maps.get(seed);const random=rng(seed),houses=cabins.map(([name,kind,x,y],id)=>({id,name,tag:String(id+1).padStart(2,'0'),kind,x,y,w:240,h:155,windows:houseWindows(id)})),layouts=interiors();
  const partitions=[PARTITIONS,[],[rect(397,40,16,155,'wall')],[rect(385,40,15,135,'wall')],PARTITIONS,[rect(370,40,17,240,'wall')],[rect(445,210,16,250,'wall')],[],[rect(405,330,16,125,'wall')]];
  const variant=(seed>>>24)%3;if(variant){for(const h of houses)for(const w of h.windows)if(w.state!=='barred')w.state=(h.id+w.id+variant)%3===0?'closed':'open';for(const [id,list]of layouts.entries())for(const f of list)if(f.y>150&&((id+variant)%3!==0)){const next=ROOM.w-f.x-f.w;const collides=partitions[id].some(o=>next<o.x+o.w&&next+f.w>o.x&&f.y<o.y+o.h&&f.y+f.h>o.y);if(!collides)f.x=next;}for(const h of houses)if([3,5,6].includes(h.id)){h.x+=(variant===1?1:-1)*(h.id===5?35:45);h.y+=(h.id===3?25:-20);}}
+ // Reserve a continuous landing lane in front of every usable window.
+ for(const [id,list]of layouts.entries()){
+  const lanes=houses[id].windows.filter(w=>w.state!=='barred').map(w=>({x:windowInside(w).x-22,y:40,w:44,h:145}));
+  const overlap=(a,b,pad=0)=>a.x-pad<b.x+b.w&&a.x+a.w+pad>b.x&&a.y-pad<b.y+b.h&&a.y+a.h+pad>b.y;
+  for(const f of list)if(lanes.some(l=>overlap(f,l))){let placed=false;
+   for(let y=190;y<450&&!placed;y+=45)for(let x=65;x+f.w<700&&!placed;x+=40){const q={...f,x,y};if(y+f.h>470||lanes.some(l=>overlap(q,l,20))||[...list.filter(n=>n!==f),...partitions[id]].some(o=>overlap(q,o,24)))continue;Object.assign(f,{x,y});placed=true;}
+   if(!placed){f.x=230;f.y=57;}
+  }
+ }
  const paths=[[[25,450],[480,450],[766,450],[1010,420],[1350,355],[1775,300],[2100,415]],[[20,940],[490,940],[766,940],[1130,875],[1530,925],[2050,1020]],[[80,1430],[766,1430],[1120,1370],[1550,1420],[2040,1430]],[[505,450],[565,580],[555,790],[490,940]],[[1010,420],[995,650],[1130,875],[1120,1370]],[[1775,300],[1630,555],[1530,925],[1550,1420]]].map((points,id)=>({id,width:id<3?64:34,points:points.map(([x,y])=>({x,y}))}));
  for(const h of houses){const p=door(h);let nearest=null,score=Infinity;for(const path of paths.slice(0,3))for(let i=1;i<path.points.length;i++){const a=path.points[i-1],b=path.points[i],dx=b.x-a.x,dy=b.y-a.y,t=clamp(((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy),0,1),q={x:a.x+dx*t,y:a.y+dy*t};if(dist(p,q)<score){score=dist(p,q);nearest=q;}}paths.push({id:'drive'+h.id,width:27,points:dist(p,nearest)<70?[p,nearest]:[p,{x:p.x,y:p.y+35},nearest]});}
  const solids=houses.map(h=>({x:h.x-2,y:h.y-12,w:244,h:172,kind:'house'}));for(const h of houses){const p=fuseBox(h);solids.push({x:p.x-9,y:p.y-15,w:18,h:25,kind:'utility'});}
@@ -50,7 +59,7 @@ export function createWorld(seed){
  const roomSolids=layouts.map((f,id)=>[...f,...partitions[id]]);
  const occluders=solids.filter(o=>!['tree','water','utility'].includes(o.kind)).map(o=>({...o}));for(const t of trees)occluders.push({x:t.x-25*t.size,y:t.y-49*t.size,w:50*t.size,h:52*t.size,cx:t.x,cy:t.y-23*t.size,rx:25*t.size,ry:26*t.size,kind:'ellipse'});
  const map={seed,houses,layouts,partitions,roomSolids,solids,occluders,trees,specks,lamps,decor,paths,grids:new Map(),spatial:new Map()};maps.set(seed,map);if(maps.size>16)maps.delete(maps.keys().next().value);
- map.lootSpots=[];for(let scene=0;scene<9;scene++)for(const p of[{x:286,y:343},{x:465,y:130},{x:650,y:337},{x:310,y:470},{x:590,y:125},{x:240,y:185}]){const free=freePoint(map,p,scene);if(!map.lootSpots.some(q=>q.scene===scene&&dist(q,free)<45))map.lootSpots.push({...free,scene});}
+ map.lootSpots=[];for(let scene=0;scene<9;scene++)for(const p of[{x:286,y:343},{x:465,y:130},{x:650,y:337},{x:310,y:470},{x:590,y:125},{x:240,y:185}]){const free=safePoint(map,p,scene);if(!map.lootSpots.some(q=>q.scene===scene&&dist(q,free)<45))map.lootSpots.push({...free,scene});}
  for(const path of paths.slice(0,3))for(const p of path.points){for(const side of[-1,1]){const q=freePoint(map,{x:p.x+side*55,y:p.y+side*75},-1);if(q.x>50&&q.x<2100)map.lootSpots.push({...q,scene:-1});}}
  return map;
 }
@@ -110,4 +119,20 @@ export function route(map,goal,a,scene=a.scene){
  const from=near(a),to=near(goal);if(!from||!to)return[];const start=from.y*cols+from.x,end=to.y*cols+to.x,g=new Float64Array(cols*rows),parents=new Int32Array(cols*rows),closed=new Uint8Array(cols*rows),heap=[];g.fill(Infinity);g[start]=0;parents.fill(-1);
  const push=(k,f)=>{let i=heap.length;heap.push({k,f});while(i){const p=(i-1)>>1;if(heap[p].f<=f)break;heap[i]=heap[p];i=p;}heap[i]={k,f};};const pop=()=>{const v=heap[0],last=heap.pop();if(heap.length){let i=0;while(true){let c=i*2+1;if(c>=heap.length)break;if(c+1<heap.length&&heap[c+1].f<heap[c].f)c++;if(heap[c].f>=last.f)break;heap[i]=heap[c];i=c;}heap[i]=last;}return v.k;};push(start,0);let count=0;
  while(heap.length&&count++<8000){const k=pop();if(closed[k])continue;if(k===end){const pts=[];for(let cur=k;cur!==start&&cur>=0;cur=parents[cur])pts.push({x:cur%cols*cell+14,y:Math.floor(cur/cols)*cell+14});return pts.reverse();}closed[k]=1;const x=k%cols,y=Math.floor(k/cols);for(const[dx,dy]of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){const nx=x+dx,ny=y+dy,nk=ny*cols+nx;if(!free(nx,ny)||closed[nk]||(dx&&dy&&(!free(x+dx,y)||!free(x,y+dy))))continue;const cost=g[k]+(dx&&dy?1.414:1);if(cost<g[nk]){g[nk]=cost;parents[nk]=k;push(nk,cost+Math.hypot(nx-to.x,ny-to.y));}}}return[];
+}
+
+// Only cells connected to the exit/road are valid landing and recovery positions.
+export function safeArea(map,scene){
+ map.safeAreas??=new Map();if(map.safeAreas.has(scene))return map.safeAreas.get(scene);
+ const size=scene<0?WORLD:ROOM,step=12,cols=Math.floor(size.w/step),rows=Math.floor(size.h/step),valid=new Uint8Array(cols*rows),seen=new Uint8Array(cols*rows),anchor=scene<0?{x:490,y:970}:{x:380,y:485};
+ let start=-1,nearest=Infinity;
+ for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){const k=y*cols+x,p={x:x*step+6,y:y*step+6};if(blocked(map,p.x,p.y,16,scene))continue;valid[k]=1;const d=dist(p,anchor);if(d<nearest){nearest=d;start=k;}}
+ const queue=start<0?[]:[start],points=[];if(start>=0)seen[start]=1;
+ for(let i=0;i<queue.length;i++){const k=queue[i],x=k%cols,y=Math.floor(k/cols),p={x:x*step+6,y:y*step+6};points.push(p);
+  for(const [dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const xx=x+dx,yy=y+dy,n=yy*cols+xx;if(xx<0||yy<0||xx>=cols||yy>=rows||!valid[n]||seen[n]||blocked(map,p.x+dx*step/2,p.y+dy*step/2,16,scene))continue;seen[n]=1;queue.push(n);}
+ }
+ map.safeAreas.set(scene,points);return points;
+}
+export function safePoint(map,p,scene=-1){
+ const points=safeArea(map,scene);if(!points.length)throw Error('No connected landing area');let best=points[0],d=Infinity;for(const q of points){const n=dist(q,p);if(n<d){best=q;d=n;}}return{x:best.x,y:best.y};
 }

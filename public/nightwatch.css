@@ -43,3 +43,5 @@ html,body{touch-action:manipulation}
 .map-open [data-game-abilities],.map-open [data-game-controls],.map-open .combat-hud,.map-open .inventory-hud,.map-open .objective-strip{visibility:hidden;pointer-events:none}.map-open .minimap-hit{z-index:7}
 @media(max-width:650px){.brand{font-size:9px;letter-spacing:.08em}.brand small{display:none}.top-actions button{font-size:9px;padding:6px}.touch-input .combat-hud{top:125px;bottom:auto;width:85px}.touch-input .combat-hud .health-pips{margin-bottom:5px}}
 @media(max-height:480px) and (orientation:landscape){.touch-input .combat-hud{top:auto;bottom:12px;left:12px;width:72px}}
+
+.settings-inner>footer{flex-wrap:wrap}.settings-inner>footer [data-binding-note]{flex:1 1 100%}

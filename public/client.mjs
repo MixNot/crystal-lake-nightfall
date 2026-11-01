@@ -580,7 +580,7 @@ $('[data-high-contrast]').onchange=e=>{preferences.contrast=e.target.checked;app
 $('[data-sound-cues]').onchange=e=>{preferences.soundCues=e.target.checked;savePreferences();};
 $('[data-motion]').onchange=e=>{preferences.motion=e.target.checked;applyPreferences();savePreferences();};
 $('[data-practice]').onclick=startPractice;$('[data-practice-settings]').onclick=()=>{if(room){put('[data-binding-note]','Обучение доступно из общего лобби после выхода из матча.');return;}closeSettings();startPractice();};
-$('[data-resume]').onclick=closeSettings;renderBindings();applyPreferences();
+$('[data-unstuck]').onclick=()=>{if(!canControl()||view.me.boarded!=null){put('[data-binding-note]','Доступно живому персонажу вне транспорта.');return;}if((view.me.cooldowns.unstuck||0)>0){put('[data-binding-note]','Повторно можно через '+Math.ceil(view.me.cooldowns.unstuck)+' с.');return;}sendAction('unstuck');closeSettings();};$('[data-resume]').onclick=closeSettings;renderBindings();applyPreferences();
 
 $('[data-depart]').onclick=()=>sendAction('depart');
 

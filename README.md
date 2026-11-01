@@ -26,3 +26,5 @@ By default rooms use in-memory SQLite. A restart/deploy closes those matches; cl
 Session tokens and room data belong only in the runtime database, never in source control. Audio attribution and CC0 sources: `public/audio/CREDITS.md`.
 
 On phones, attack is beside run/interact. Tap the minimap to open/close the map; desktop shows the assigned map key on the minimap. The separate map ability icon was removed. Mobile lobby panels scroll inside the viewport.
+
+Window landing lanes are reserved during interior generation. Room entries and hiding exits use free points connected to the exit. Settings → «Я застрял» recovers a living character outside vehicles after 3 seconds, with a 60-second cooldown; movement or damage interrupts the action. Health and equipment are preserved.
