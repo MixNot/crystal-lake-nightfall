@@ -34,3 +34,4 @@ html,body{touch-action:manipulation}
 .move-stick[data-active=true] .stick-thumb{border-color:#e5d391;background:radial-gradient(circle at 38% 28%,#a5b191,#4d6548 70%)}
 @media(max-width:600px){.touch-input .touch-controls{bottom:123px}.move-stick{width:106px;height:106px;flex-basis:106px}.stick-thumb{width:40px;height:40px}}
 @media(max-height:480px) and (orientation:landscape){.touch-input .touch-controls{bottom:65px}.move-stick{width:94px;height:94px;flex-basis:94px}.stick-thumb{width:36px;height:36px}}
+.room-takeover{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 16px;color:#b6c1ae;font-size:12px}.room-takeover select{max-width:65%;min-width:0;padding:9px 12px;border:1px solid #4a6556;border-radius:7px;background:#142924;color:#eee9d8;font:inherit;font-size:13px}.room-takeover select:focus-visible{outline:2px solid #dbc789;outline-offset:3px}

@@ -7,6 +7,7 @@ The hosting provider supplies `PORT`; WebSocket `/ws`, HTTP fallback `/api/rooms
 
 - Classic: one hunter and up to four survivors; bots fill the selected number of free survivor places. Hunt allows additional survivor bots, up to twelve.
 - The lobby host chooses bot count, mode and AI difficulty. Appearances remain cosmetic.
+- Join an ongoing match from the room list by choosing an available role and replacing a living bot. Code entry chooses an available bot automatically. The existing character keeps their position, health, skin, equipment and cooldowns; no new character or supplies are spawned. Disconnected human characters stay reserved for their owners. Human capacity remains five, with one player per role.
 - Esc opens saved audio/display settings, key remapping and the guide. Icons show abilities, ammunition and cooldowns; contextual prompts appear only near available interactions.
 - Jason uses the machete, traps, sense (60-second cooldown), stealth and rage. Throwing knives, dash and protection were removed.
 - Survivor supplies are limited and randomly scattered. Notes provide temporary approximate clues; supply kits may be locked and noisy. Destroyed parts respawn randomly in another location.

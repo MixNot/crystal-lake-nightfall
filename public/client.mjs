@@ -43,10 +43,38 @@ function streamRequest(body){return new Promise((resolve,reject)=>{if(!streamRea
 fetch('/api/connection',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(config=>{streamAllowed=config?.transport==='websocket';ensureStream();}).catch(()=>{});
 
 async function request(url,body,auth=token){if(body&&streamReady&&url==='/api/rooms/'+streamCode){try{return await streamRequest(body);}catch(error){if(error.status&&error.status<500)throw error;}}const response=await fetch(url,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json',...(auth?{Authorization:'Bearer '+auth}:{})}:{},body:body?JSON.stringify(body):undefined,cache:'no-store',signal:AbortSignal.timeout(6500)});let data;try{data=await response.json();}catch{throw Object.assign(new Error(response.status===403?'Этот адрес заблокирован сетью или хостингом.':'Сервер не ответил. Попробуйте подключиться снова.'),{status:response.status||503});}if(!response.ok)throw Object.assign(new Error(data.error||'Не удалось подключиться.'),{status:response.status});return data;}
-async function list(){if(room)return;try{const data=await request('/api/lobby');connected=true;const root=$('[data-rooms]');root.replaceChildren();if(!data.rooms.length){const p=document.createElement('p');p.className='online-note';p.textContent='Пока нет комнат. Создай первую и пригласи друзей.';root.append(p);}for(const r of data.rooms){const card=document.createElement('article');card.className='room-card';const h=document.createElement('h3');h.textContent=r.title;const p=document.createElement('p');p.textContent=r.code+' · '+r.players.length+' / '+r.capacity+' · '+(r.phase==='lobby'?'ждут игроков':r.phase==='playing'?'матч идёт':'ночь закончилась');const b=document.createElement('button');b.textContent='Присоединиться';b.disabled=r.phase!=='lobby'||r.players.length>=r.capacity;b.onclick=()=>join(r.code);card.append(h,p,b);root.append(card);}}catch(e){put('[data-error]',e.message);connected=false;}put('[data-connection-label]',room?'Отклик сервера':'Сеть');put('[data-connection]',connected?'Общее лобби':'Нет связи');}
+let roomListSignature='',joining=false;const joinChoices=new Map();
+async function list(){
+ if(room||joining)return;
+ try{
+  const data=await request('/api/lobby');if(room||joining)return;connected=true;
+  const signature=JSON.stringify(data.rooms),cards=$('[data-rooms]');
+  if(signature!==roomListSignature){
+   roomListSignature=signature;cards.replaceChildren();
+   if(!data.rooms.length){const p=document.createElement('p');p.className='online-note';p.textContent='Пока нет комнат. Создай первую и пригласи друзей.';cards.append(p);}
+   for(const r of data.rooms){
+    const card=document.createElement('article');card.className='room-card';card.dataset.roomCode=r.code;
+    const h=document.createElement('h3');h.textContent=r.title;
+    const p=document.createElement('p');p.textContent=r.code+' · '+r.players.length+' / '+r.capacity+' · '+(r.phase==='lobby'?'ждут игроков':r.phase==='playing'?'матч идёт':'ночь закончилась');
+    const available=r.canJoin??(r.phase==='lobby'&&r.players.length<r.capacity),roles=r.joinRoles||[];
+    card.append(h,p);let select;
+    if(r.phase==='playing'&&roles.length){
+     const label=document.createElement('label');label.className='room-takeover';label.textContent='Роль в матче';select=document.createElement('select');select.setAttribute('aria-label','Роль для замены бота в комнате '+r.code);
+     for(const role of roles){const option=document.createElement('option');option.value=role;option.textContent=ROLE_NAMES[role];select.append(option);}
+     select.value=roles.includes(joinChoices.get(r.code))?joinChoices.get(r.code):roles[0];select.disabled=!available;
+     select.onchange=()=>joinChoices.set(r.code,select.value);label.append(select);card.append(label);
+    }
+    const b=document.createElement('button');b.dataset.roomJoin=r.code;
+    b.textContent=available?(r.phase==='playing'?'Заменить бота':'Присоединиться'):r.players.length>=r.capacity?'Комната заполнена':r.phase==='playing'?'Нет свободных ботов':r.phase==='ended'?'Матч завершён':'Вход недоступен';
+    b.disabled=!available;b.onclick=()=>join(r.code,select?.value);card.append(b);cards.append(card);
+   }
+  }
+ }catch(e){put('[data-error]',e.message);connected=false;}
+ put('[data-connection-label]',room?'Отклик сервера':'Сеть');put('[data-connection]',connected?'Общее лобби':'Нет связи');
+}
 async function create(){ensureAudio();$('[data-create]').disabled=true;put('[data-error]','');try{const data=await request('/api/lobby',{name:name(),title:'Ночь · '+name()});accept(data);history.replaceState(null,'','?room='+room.code+(guest?'&guest='+guest:''));}catch(e){put('[data-error]',e.message);}finally{$('[data-create]').disabled=false;}}
 function name(){const n=$('[data-name]').value.trim().slice(0,20)||'Игрок';storage.setItem('nightfall-name',n);return n;}
-async function join(c){ensureAudio();c=String(c||$('[data-code]').value).toUpperCase().replace(/[^A-F0-9]/g,'').slice(0,6);if(c.length!==6){put('[data-error]','Введи шестизначный код комнаты.');return;}put('[data-error]','');try{const saved=session?.code===c?session.token:'';const data=await request('/api/rooms/'+c,{op:'join',name:name()},saved);token=data.token||saved;accept(data);history.replaceState(null,'','?room='+c+(guest?'&guest='+guest:''));}catch(e){put('[data-error]',e.message);}}
+async function join(c,role){if(joining||room)return;ensureAudio();c=String(c||$('[data-code]').value).toUpperCase().replace(/[^A-F0-9]/g,'').slice(0,6);if(c.length!==6){put('[data-error]','Введи шестизначный код комнаты.');return;}put('[data-error]','');joining=true;for(const b of root.querySelectorAll('[data-room-join],[data-join],[data-create]'))b.disabled=true;try{const saved=session?.code===c?session.token:'';const data=await request('/api/rooms/'+c,{op:'join',name:name(),...(role?{role}:{})},saved);token=data.token||saved;accept(data);history.replaceState(null,'','?room='+c+(guest?'&guest='+guest:''));}catch(e){put('[data-error]',e.message);}finally{joining=false;$('[data-join]').disabled=false;$('[data-create]').disabled=false;roomListSignature='';if(!room)list();}}
 async function operation(op,extra={}){if(!room)return;try{const data=await request('/api/rooms/'+room.code,{op,...extra});accept(data);put('[data-room-error]','');return data;}catch(e){put('[data-room-error]',e.message);note(e.message);return null;}}
 async function leave(){if(leaving)return;resetTouchMovement();leaving=true;sessionGeneration++;closeStream();if(room){try{await request('/api/rooms/'+room.code,{op:'leave'});}catch{}}room=null;view=null;token='';memberId=null;session=null;storage.removeItem(sessionKey);state='lobby';retryPacket=null;nextActions=[];seq=0;pendingMoves=[];moveSeq=0;history.replaceState(null,'',location.pathname+(guest?'?guest='+guest:''));drawActors.clear();pendingInteraction=null;leaving=false;show();list();}
 function accept(data){
