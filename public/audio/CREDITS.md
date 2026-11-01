@@ -27,3 +27,7 @@ Prepared for Crystal Lake: Nightfall on 2026-10-28. All supplied source recordin
 Unless explicitly described otherwise, effects were high-passed at 55 Hz, low-passed at 8.5 kHz, trimmed at leading silence, levelled conservatively and converted to MP3 VBR quality 2 at 44.1 kHz. Original texture and variation were retained. Individual processing chains, file hashes, measured RMS/peak levels and decoded durations are in `manifest.json`.
 
 The recordings were checked for successful decoding, duration, non-silence and level headroom. No subjective listening claim is implied by those technical checks.
+
+## Vehicle engine
+
+- **domasx2 — racing car engine sound loops**. [Source and CC0 license](https://opengameart.org/content/racing-car-engine-sound-loops), [recorded engine loop](https://opengameart.org/sites/default/files/loop_0.wav). The author derived this loop from a public-domain car recording. `car-engine.mp3`: repeated recorded loop, high-pass 45 Hz, low-pass 4.2 kHz, reduced gain and peak limiting. Playback pitch and level follow vehicle speed; no oscillator/noise synthesis.

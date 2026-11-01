@@ -528,6 +528,15 @@
       "measured_rms_dbfs": -38.0,
       "license": "CC0-1.0",
       "source_url": "https://opengameart.org/content/100-cc0-sfx-2"
+    },
+    {
+      "file": "car-engine.mp3",
+      "origin": "domasx2 — racing car engine sound loops",
+      "license": "CC0",
+      "source": "https://opengameart.org/content/racing-car-engine-sound-loops",
+      "loop": true,
+      "bytes": 45674,
+      "sha256": "ed73e67a84318e8ec49c995e6e429e2abfe68e65df0e1daf96f1e2d98a6f754b"
     }
   ]
 }
